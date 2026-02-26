@@ -136,28 +136,45 @@ ssh_ecdsa_verify(const Key *key, const u_char *signature, u_int signaturelen,
     }
 
     /* parse signature */
-    if ((sig = ECDSA_SIG_new()) == NULL)
-        pamsshagentauth_fatal("ssh_ecdsa_verify: ECDSA_SIG_new failed");
+    if (len >= 2 && sigblob[0] == 0x30) {
+        /*
+         * DER encoded ECDSA signature, as returned by some SSH agents
+         * backed by hardware tokens (e.g. Apple Secure Enclave).
+         */
+        const u_char *p = sigblob;
+        sig = d2i_ECDSA_SIG(NULL, &p, len);
+        if (sig == NULL) {
+            pamsshagentauth_logerror("ssh_ecdsa_verify: "
+                "d2i_ECDSA_SIG failed");
+            pamsshagentauth_xfree(sigblob);
+            return -1;
+        }
+    } else {
+        /* SSH format: mpint r, mpint s */
+        if ((sig = ECDSA_SIG_new()) == NULL)
+            pamsshagentauth_fatal("ssh_ecdsa_verify: ECDSA_SIG_new failed");
 
-    pamsshagentauth_buffer_init(&b);
-    pamsshagentauth_buffer_append(&b, sigblob, len);
+        pamsshagentauth_buffer_init(&b);
+        pamsshagentauth_buffer_append(&b, sigblob, len);
 #if OPENSSL_VERSION_NUMBER < 0x10100005L
-    if ((pamsshagentauth_buffer_get_bignum2_ret(&b, sig->r) == -1) ||
-        (pamsshagentauth_buffer_get_bignum2_ret(&b, sig->s) == -1))
-        pamsshagentauth_fatal("ssh_ecdsa_verify:"
-            "pamsshagentauth_buffer_get_bignum2_ret failed");
+        if ((pamsshagentauth_buffer_get_bignum2_ret(&b, sig->r) == -1) ||
+            (pamsshagentauth_buffer_get_bignum2_ret(&b, sig->s) == -1))
+            pamsshagentauth_fatal("ssh_ecdsa_verify:"
+                "pamsshagentauth_buffer_get_bignum2_ret failed");
 #else
-    if ((r = BN_new()) == NULL)
-        pamsshagentauth_fatal("ssh_ecdsa_verify: BN_new failed");
-    if ((s = BN_new()) == NULL)
-        pamsshagentauth_fatal("ssh_ecdsa_verify: BN_new failed");
-    if ((pamsshagentauth_buffer_get_bignum2_ret(&b, r) == -1) ||
-        (pamsshagentauth_buffer_get_bignum2_ret(&b, s) == -1))
-        pamsshagentauth_fatal("ssh_ecdsa_verify:"
-            "pamsshagentauth_buffer_get_bignum2_ret failed");
-    if (ECDSA_SIG_set0(sig, r, s) != 1)
-        pamsshagentauth_fatal("ssh_ecdsa_verify: ECDSA_SIG_set0 failed");
+        if ((r = BN_new()) == NULL)
+            pamsshagentauth_fatal("ssh_ecdsa_verify: BN_new failed");
+        if ((s = BN_new()) == NULL)
+            pamsshagentauth_fatal("ssh_ecdsa_verify: BN_new failed");
+        if ((pamsshagentauth_buffer_get_bignum2_ret(&b, r) == -1) ||
+            (pamsshagentauth_buffer_get_bignum2_ret(&b, s) == -1))
+            pamsshagentauth_fatal("ssh_ecdsa_verify:"
+                "pamsshagentauth_buffer_get_bignum2_ret failed");
+        if (ECDSA_SIG_set0(sig, r, s) != 1)
+            pamsshagentauth_fatal("ssh_ecdsa_verify: ECDSA_SIG_set0 failed");
 #endif
+        pamsshagentauth_buffer_free(&b);
+    }
 
     /* clean up */
     memset(sigblob, 0, len);
