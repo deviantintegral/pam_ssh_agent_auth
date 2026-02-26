@@ -2,7 +2,13 @@ Makefile
 config.h
 config.log
 config.status
+config.h.in~
+configure~
+autom4te.cache/
+ltmain.sh
+_codeql_detected_source_root
 openbsd-compat/libopenbsd-compat.a
+openbsd-compat/Makefile
 pam_ssh_agent_auth.8
 pam_ssh_agent_auth.so
 *.sublime-project
