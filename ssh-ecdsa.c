@@ -136,7 +136,7 @@ ssh_ecdsa_verify(const Key *key, const u_char *signature, u_int signaturelen,
     }
 
     /* parse signature */
-    if (len >= 2 && sigblob[0] == 0x30) {
+    if (len >= 8 && sigblob[0] == 0x30) {
         /*
          * DER encoded ECDSA signature, as returned by some SSH agents
          * backed by hardware tokens (e.g. Apple Secure Enclave).
